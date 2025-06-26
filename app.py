@@ -100,12 +100,9 @@ with tab2:
     # 数据仿射变换
     if st.button("数据仿射变换"):
         if st.session_state.df is not None:
-            df = st.session_state.df
-            df = (df - df.mean(axis=0)) / df.std(axis=0)
-            st.session_state.df = df
             Y = st.session_state.df.values
             # 将 Y 的每一列标准化(默认不执行)
-            # Y = (Y - Y.mean(axis=0)) / Y.std(axis=0)
+            Y = (Y - Y.mean(axis=0)) / Y.std(axis=0)
             # 数据矩阵 Y 的第 i 个变量 (第 i 列) 仿射映射到 [-1,1] 区间
             def Y_tilde_fun(Y):
                 Y_tilde = []
@@ -263,7 +260,7 @@ with tab3:
             if st.session_state.X_integral is not None:
                 # 获取原始数据Y
                 Y = st.session_state.df.values
-                
+                Y = (Y - Y.mean(axis=0)) / Y.std(axis=0)
                 coef_asgl_list = []     # 单变量选择的系数结果
                 coef_asgl_list_all = []   # 所有变量选择的系数结果
                 coef_asgl_group_all = []  # 组选择的系数结果
@@ -320,6 +317,7 @@ with tab3:
                 variables_names = st.session_state.variables_names
                 time = st.session_state.time
                 Y = st.session_state.df.values
+                Y = (Y - Y.mean(axis=0)) / Y.std(axis=0)
                 for eq_idx in range(variables_numbers):
                     effect_temp = []
                     for i in range(time_numbers):
