@@ -100,7 +100,8 @@ def init_session_state():
         'group_selection_all': None, 'coef_asgl_list': None, 'coef_asgl_list_all': None,
         'coef_asgl_group_all': None, 'best_params_list': None, 'param_dist': None,
         'X_columns': None, 'X_integral_columns': None, 'Adjacency_matrix': None,
-        'all_effects': None, 'analysis_complete': False, 'current_step': 1
+        'all_effects': None, 'analysis_complete': False, 'current_step': 1,
+        'last_weight_value': None, 'last_weight_value_individual': None
     }
     
     for key, value in defaults.items():
@@ -204,6 +205,18 @@ with st.sidebar:
         n_order = st.slider("勒让德多项式阶数", min_value=1, max_value=15, value=5, help="控制特征复杂度")
         cv_folds = st.slider("交叉验证折数", min_value=3, max_value=10, value=5)
         n_iter = st.slider("随机搜索迭代次数", min_value=10, max_value=100, value=20)
+        
+        st.markdown("**稀疏权重参数**")
+        weight_value = st.number_input(
+            "权重系数", 
+            value=0.01, 
+            min_value=0.001, 
+            max_value=1.0, 
+            step=0.001, 
+            format="%.3f",
+            help="影响变量选择的稀疏性"
+        )
+        st.caption("💡 较小的值(如0.1)保留更多连接，较大的值(如0.5)产生更稀疏的网络")
     
     # 可视化参数
     with st.expander("🎨 可视化参数"):
@@ -573,22 +586,31 @@ with tab4:
     if st.session_state.X_integral is None:
         st.markdown('<div class="status-box status-warning">⚠️ 请先完成特征工程</div>', unsafe_allow_html=True)
     else:
-        # 准备权重矩阵
-        if st.session_state.custom_group_weights is None:
+        # 准备权重矩阵（使用全局权重参数）
+        # 检查权重参数是否发生变化，如果变化则重新生成权重矩阵
+        if ('last_weight_value' not in st.session_state or 
+            st.session_state.last_weight_value != weight_value or
+            st.session_state.custom_group_weights is None):
+            
             custom_group_weights = []
             for j in range(st.session_state.variables_numbers):
-                row = [0.3] * st.session_state.variables_numbers
+                row = [weight_value] * st.session_state.variables_numbers
                 row[j] = 0   # 自身权重设为0
                 custom_group_weights.append(row)
             st.session_state.custom_group_weights = custom_group_weights
+            st.session_state.last_weight_value = weight_value
 
-        if st.session_state.custom_individual_weights is None:
+        if ('last_weight_value_individual' not in st.session_state or 
+            st.session_state.last_weight_value_individual != weight_value or
+            st.session_state.custom_individual_weights is None):
+            
             custom_individual_weights = []
             for j in range(st.session_state.variables_numbers*(n_order+1)):
-                row = [0.3] * st.session_state.variables_numbers*(n_order+1)
+                row = [weight_value] * st.session_state.variables_numbers*(n_order+1)
                 row[j] = 0
                 custom_individual_weights.append(row)
             st.session_state.custom_individual_weights = custom_individual_weights
+            st.session_state.last_weight_value_individual = weight_value
         
         col1, col2 = st.columns([3, 1])
         
@@ -596,6 +618,7 @@ with tab4:
             st.markdown("#### 🔧 建模参数")
             st.info(f"交叉验证折数: {cv_folds}")
             st.info(f"随机搜索次数: {n_iter}")
+            st.info(f"权重系数: {weight_value}")
             
             total_models = st.session_state.variables_numbers
             st.metric("模型数量", total_models)
@@ -771,7 +794,7 @@ with tab5:
             
             with col2:
                 st.markdown("##### 🎨 网络图参数")
-                edge_scale = st.number_input('边粗细缩放', value=0.003, format="%.4f", min_value=0.0001, max_value=0.01)
+                edge_scale = st.number_input('边粗细缩放', value=0.003, format="%.4f", min_value=0.0001, max_value=10.0, step=0.001)
                 vertex_size = st.slider('节点大小', 30, 100, 50)
                 vertex_label_size = st.slider('标签字体', 8, 20, 12)
                 layout_mode = st.selectbox('布局方式', ['circle', 'fr', 'kk'])
@@ -842,15 +865,15 @@ with tab5:
 
                     ax1 = fig.add_subplot(gs[0])
                     plot(g, target=ax1, **visual_style)
-                    ax1.set_title('网络拓扑图', fontsize=16, fontweight='bold')
+                    ax1.set_title('Network', fontsize=16, fontweight='bold')
                     ax1.axis('off')
 
                     ax2 = fig.add_subplot(gs[1])
                     bar_width = 0.6
                     ax2.barh(y_pos, [-d for d in in_degrees], height=bar_width, 
-                            color='lightgreen', label='入度', alpha=0.8)
+                            color='lightgreen', label='In', alpha=0.8)
                     ax2.barh(y_pos, out_degrees, height=bar_width, 
-                            color='skyblue', label='出度', left=0, alpha=0.8)
+                            color='skyblue', label='Out', left=0, alpha=0.8)
                     ax2.axvline(x=0, color='gray', linestyle='--', linewidth=1)
                     ax2.set_yticks(y_pos)
                     ax2.set_yticklabels(vertex_names, fontsize=10)
@@ -860,7 +883,7 @@ with tab5:
                     ax2.spines['bottom'].set_visible(False)
                     ax2.spines['left'].set_visible(False)
                     ax2.legend(loc='upper right', fontsize=10, framealpha=0.8)
-                    ax2.set_title('度分布', fontsize=12, fontweight='bold')
+                    ax2.set_title('Degree Distribution', fontsize=12, fontweight='bold')
                     
                     plt.tight_layout()
                     plt.subplots_adjust(wspace=0.05)
